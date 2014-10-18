@@ -5,6 +5,7 @@ require 'digest/md5'
 require "rest-client"
 require "base64"
 require 'uri'
+require 'cgi'
 
 module Aliyun
   class Connection
@@ -12,6 +13,7 @@ module Aliyun
       @aliyun_access_id = options[:access_id]
       @aliyun_access_key = options[:access_key]
       @aliyun_bucket = options[:bucket]
+      @expires = options[:expires] || 3600
 
       data_centre = options[:data_centre].to_s.downcase == 'qingdao' ? 'qingdao' : 'hangzhou'
       internal = options[:internal] == true ? true : false
@@ -104,6 +106,17 @@ module Aliyun
       response.body
     end
 
+    def get_url(path)
+      path = format_path(path)
+      bucket_path = CGI.unescape(get_bucket_path(path))
+      expires = Time.now.to_i + @expires
+      signature = sign("GET", bucket_path, "", "" ,expires, "")
+      signature[-1]=""
+      signature = CGI::escape(signature)
+      url = path_to_url(path) + "?Expires=#{expires}&OSSAccessKeyId=#{@aliyun_access_id}&Signature=#{signature}"
+      url
+    end
+
 =begin rdoc
 检查远程服务器是否已存在指定文件
 
@@ -158,14 +171,14 @@ true/false
     end
 
     private
-    def sign(verb, path, content_md5 = '', content_type = '', date)
+    def sign(verb, path, content_md5 = '', content_type = '', date="", prefix="OSS #{@aliyun_access_id}:")
       canonicalized_oss_headers = ''
       canonicalized_resource = "/#{path}"
       string_to_sign = "#{verb}\n\n#{content_type}\n#{date}\n#{canonicalized_oss_headers}#{canonicalized_resource}"
-      digest = OpenSSL::Digest::Digest.new('sha1')
+      digest = OpenSSL::Digest.new('sha1')
       h = OpenSSL::HMAC.digest(digest, @aliyun_access_key, string_to_sign)
       h = Base64.encode64(h)
-      "OSS #{@aliyun_access_id}:#{h}"
+      "#{prefix}#{h}"
     end
   end
 end
