@@ -10,7 +10,11 @@ module Paperclip
 
       def flush_writes #:nodoc:
         @queued_for_write.each do |style_name, file|
-          oss_connection.put path(style_name), (File.new file.path), {content_type: file.content_type}
+          content_type = file.content_type
+          if content_type =~ /svg\/\+xml/
+            content_type = "image/svg+xml"
+          end
+          oss_connection.put path(style_name), (File.new file.path), {content_type: content_type}
         end
 
         after_flush_writes
